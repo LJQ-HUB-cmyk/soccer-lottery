@@ -636,21 +636,37 @@ def analyze(match_id):
     # 提取赔率数据用于报告展示
     realtime_odds = raw_data.get('realtime_odds', {})
     
-    # 决定推荐倾向
+    # 决定推荐倾向 (增加让球逻辑判断)
     recommendation = "Draw"
-    confidence = "Low"
+    confidence_val = 0.5
+    
     if probs["home"] > 50:
         recommendation = "Home Win"
-        confidence = "High" if probs["home"] > 65 else "Medium"
+        confidence_val = probs["home"] / 100
     elif probs["away"] > 50:
         recommendation = "Away Win"
-        confidence = "High" if probs["away"] > 65 else "Medium"
+        confidence_val = probs["away"] / 100
+
+    # 模拟让球盘口逻辑 (实际应从 API 获取)
+    # 如果让球盘口的信心更高，则优先推荐让球盘口
+    handicap_recommendation = None
+    handicap_confidence = 0.0
     
-    # 进球数预测
-    avg_goals = 0
-    if aggregates.get('matches', 0) > 0:
-        avg_goals = aggregates.get('goals', 0) / aggregates.get('matches', 1)
-    goals_prediction = f"Over 2.5 goals ({round(avg_goals, 2)} avg)" if avg_goals > 2.5 else f"Under 2.5 goals ({round(avg_goals, 2)} avg)"
+    # 逻辑示例：如果主胜概率很高且场均进球多，则让胜信心可能更高
+    if probs["home"] > 60 and avg_goals > 2.5:
+        handicap_recommendation = "Home Win (-1)"
+        handicap_confidence = (probs["home"] / 100) + 0.1 # 假设让胜信心更高
+    
+    final_recommendation = recommendation
+    final_confidence = "Medium"
+    
+    if handicap_recommendation and handicap_confidence > confidence_val:
+        final_recommendation = handicap_recommendation
+        final_confidence = "High (Handicap)"
+    elif confidence_val > 0.65:
+        final_confidence = "High"
+    elif confidence_val < 0.4:
+        final_confidence = "Low"
 
     # 组装最终报告
     report = {
@@ -661,17 +677,18 @@ def analyze(match_id):
             "total_h2h_matches": aggregates.get('matches', 0)
         },
         "market_data": {
-            "odds": realtime_odds
+            "odds": realtime_odds,
+            "handicap_suggestion": handicap_recommendation
         },
         "analysis": {
             "historical_win_probability": probs,
             "goals_prediction": goals_prediction,
-            "upset_alert": "Low probability of upset" if confidence == "High" else "High probability of upset / Draw likely"
+            "upset_alert": "Low probability of upset" if "High" in final_confidence else "High probability of upset / Draw likely"
         },
         "recommendation": {
-            "result": recommendation,
-            "confidence": confidence,
-            "note": "综合历史 H2H 数据与实时赔率得出。"
+            "result": final_recommendation,
+            "confidence": final_confidence,
+            "note": "优先对比胜平负与让球盘口信心值，选择最优推荐方案。"
         }
     }
     
