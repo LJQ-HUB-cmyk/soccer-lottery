@@ -15,9 +15,9 @@
 | --- | --- | --- |
 | **自动化管道** | 一键触发抓取+分析+报告生成全流程，无需多轮对话 | `SKILL.md` Auto-Pipeline |
 | **让球深度研判** | 自动对比「胜平负」与「让球」信心值，优先推荐最优方案 | `scripts/analyzer.py` |
+| **核心串关建议** | 专注 **2串1 (稳健)** 与 **3串1 (进取)** 组合，剔除低效单关 | `SKILL.md` Step 5 |
 | **多源数据补全** | API 结合 Web Scraper（澳客/500网），确保数据不中断 | `scripts/fetch_match_data.py` |
 | **环境与配置** | 自动检查 Python 依赖与 API Key (Football-Data.org / The Odds API) | `config.yaml` |
-| **报告生成** | 输出包含胜平负/让球赔率、关键因素、过关建议的详版报告 | `SKILL.md` Step 5 |
 
 ## 分析流程
 
