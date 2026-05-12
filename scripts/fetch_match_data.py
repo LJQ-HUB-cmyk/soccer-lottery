@@ -196,10 +196,19 @@ def get_match_detail_data(match_id, config=None):
             }
         })
         
+        # 赔率获取
         odds = fetch_the_odds_api(config, home_team, away_team)
         if not odds:
             odds = web_search_odds(home_team, away_team)
         data["realtime_odds"] = odds
+        
+        # 新增：情报占位符（由 Agent 运行时通过 WebSearch 填充）
+        data["intelligence"] = {
+            "injuries": "待联网核实",
+            "odds_trend": "待联网核实",
+            "hot_level": "High" if any(x in home_team or x in away_team for x in ["Napoli", "Tottenham", "Benfica", "Real Madrid"]) else "Medium"
+        }
+        
         return data
     else:
         return {"match_id": match_id, "error": h2h_raw["error"]}

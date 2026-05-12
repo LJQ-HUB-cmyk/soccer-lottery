@@ -620,81 +620,66 @@ def generate_simple_report(match_id=None, league=None):
 
     return report
 
-def analyze(match_id):
+def analyze(match_id, injury_info=None, trend_info=None):
     config = load_config()
-    # 获取原始数据
     raw_data = get_match_detail_data(match_id, config)
     
     if "error" in raw_data:
         print(json.dumps({"error": raw_data["error"]}, ensure_ascii=False, indent=2))
         return
 
-    # 获取基础统计信息
+    # 1. 基础数据
     aggregates = raw_data.get('h2h_aggregates', {})
-    probs = calculate_win_probability(aggregates)
-    
-    # 提取赔率数据用于报告展示
+    h2h_probs = calculate_win_probability(aggregates)
     realtime_odds = raw_data.get('realtime_odds', {})
+    hot_level = raw_data.get('intelligence', {}).get('hot_level', 'Medium')
     
-    # 进球数预测
-    avg_goals = 0
-    if aggregates.get('matches', 0) > 0:
-        avg_goals = aggregates.get('goals', 0) / aggregates.get('matches', 1)
-    goals_prediction = f"Over 2.5 goals ({round(avg_goals, 2)} avg)" if avg_goals > 2.5 else f"Under 2.5 goals ({round(avg_goals, 2)} avg)"
+    # 2. 信心权重分配 (40% H2H + 30% 赔率走势 + 30% 伤病情报)
+    base_confidence = max(h2h_probs.values()) / 100
+    
+    # 赔率走势修正 (30%)
+    trend_score = 0.5 # 默认中性
+    if trend_info:
+        if "down" in trend_info.lower() or "降" in trend_info: trend_score = 0.8
+        elif "up" in trend_info.lower() or "升" in trend_info: trend_score = 0.2
+        
+    # 伤病情报修正 (30%)
+    injury_score = 0.5 # 默认中性
+    if injury_info:
+        if "missing core" in injury_info.lower() or "核心缺阵" in injury_info: injury_score = 0.2
+        elif "full squad" in injury_info.lower() or "全主力" in injury_info: injury_score = 0.8
 
-    # 决定推荐倾向 (增加让球逻辑判断)
+    final_confidence_val = (base_confidence * 0.4) + (trend_score * 0.3) + (injury_score * 0.3)
+    
+    # 3. 热门场次降级处理
+    if hot_level == "High":
+        final_confidence_val *= 0.85 # 热门比赛信心自动下调 15%
+        
+    # 4. 推荐决策
     recommendation = "Draw"
-    confidence_val = 0.5
+    if h2h_probs["home"] > 50: recommendation = "Home Win"
+    elif h2h_probs["away"] > 50: recommendation = "Away Win"
     
-    if probs["home"] > 50:
-        recommendation = "Home Win"
-        confidence_val = probs["home"] / 100
-    elif probs["away"] > 50:
-        recommendation = "Away Win"
-        confidence_val = probs["away"] / 100
-
-    # 模拟让球盘口逻辑 (实际应从 API 获取)
-    # 如果让球盘口的信心更高，则优先推荐让球盘口
+    # 让球逻辑保护
     handicap_recommendation = None
-    handicap_confidence = 0.0
-    
-    # 逻辑示例：如果主胜概率很高且场均进球多，则让胜信心可能更高
-    if probs["home"] > 60 and avg_goals > 2.5:
-        handicap_recommendation = "Home Win (-1)"
-        handicap_confidence = (probs["home"] / 100) + 0.1 # 假设让胜信心更高
-    
-    final_recommendation = recommendation
-    final_confidence = "Medium"
-    
-    if handicap_recommendation and handicap_confidence > confidence_val:
-        final_recommendation = handicap_recommendation
-        final_confidence = "High (Handicap)"
-    elif confidence_val > 0.65:
-        final_confidence = "High"
-    elif confidence_val < 0.4:
-        final_confidence = "Low"
-
-    # 组装最终报告
+    if hot_level == "High" or final_confidence_val < 0.6:
+        handicap_recommendation = f"Handicap {recommendation}" # 自动转为让球保护
+        
     report = {
         "match_id": match_id,
         "match_info": {
             "home_team": raw_data.get('home_team'),
             "away_team": raw_data.get('away_team'),
-            "total_h2h_matches": aggregates.get('matches', 0)
+            "hot_level": hot_level
         },
-        "market_data": {
-            "odds": realtime_odds,
-            "handicap_suggestion": handicap_recommendation
-        },
-        "analysis": {
-            "historical_win_probability": probs,
-            "goals_prediction": goals_prediction,
-            "upset_alert": "Low probability of upset" if "High" in final_confidence else "High probability of upset / Draw likely"
+        "intelligence": {
+            "injury_status": injury_info or "未知 (建议联网确认)",
+            "odds_trend": trend_info or "稳定 (建议联网确认)"
         },
         "recommendation": {
-            "result": final_recommendation,
-            "confidence": final_confidence,
-            "note": "优先对比胜平负与让球盘口信心值，选择最优推荐方案。"
+            "result": handicap_recommendation or recommendation,
+            "confidence": f"{round(final_confidence_val * 100)}%",
+            "note": "已根据热门度及伤病模型进行信心修正。"
         }
     }
     
@@ -705,14 +690,15 @@ if __name__ == "__main__":
     parser.add_argument("--match", required=False, help="Match ID to analyze")
     parser.add_argument("--league", required=False, help="League to analyze")
     parser.add_argument("--simple", action="store_true", help="Generate simple report")
+    parser.add_argument("--injury", help="Injury intelligence (e.g. 'missing core')")
+    parser.add_argument("--trend", help="Odds trend intelligence (e.g. 'down')")
     args = parser.parse_args()
 
     if args.simple or args.league:
         result = generate_simple_report(args.match, args.league)
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.match:
-        result = analyze(args.match)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        analyze(args.match, injury_info=args.injury, trend_info=args.trend)
     else:
         result = generate_simple_report()
         print(json.dumps(result, ensure_ascii=False, indent=2))
