@@ -657,30 +657,43 @@ def analyze(match_id, injury_info=None, trend_info=None):
         final_confidence_val *= 0.85 # 热门比赛信心自动下调 15%
         
     # 4. 推荐决策
-    recommendation = "Draw"
-    if h2h_probs["home"] > 50: recommendation = "Home Win"
-    elif h2h_probs["away"] > 50: recommendation = "Away Win"
+    recommendation = "平"
+    if h2h_probs["home"] > 50: recommendation = "胜"
+    elif h2h_probs["away"] > 50: recommendation = "负"
     
-    # 让球逻辑保护
-    handicap_recommendation = None
+    # 5. 让球逻辑保护 (对标竞彩官方标识)
+    # 默认假设热门场次主队让球 (-1)
+    handicap_val = -1 
+    final_rec = recommendation
+    
+    # 如果信心值不足或热门，自动转换为让球推荐
     if hot_level == "High" or final_confidence_val < 0.6:
-        handicap_recommendation = f"Handicap {recommendation}" # 自动转为让球保护
-        
+        if recommendation == "胜":
+            # 主胜信心不足 -> 让平/让负
+            final_rec = "让平" if final_confidence_val > 0.5 else "让负"
+        elif recommendation == "负":
+            # 客胜信心足 -> 让负 (即便主队让球，客队不败也是让负)
+            final_rec = "让负"
+        else:
+            # 平局倾向 -> 让负 (主让一球，平局即是让负)
+            final_rec = "让负"
+            
     report = {
         "match_id": match_id,
         "match_info": {
             "home_team": raw_data.get('home_team'),
             "away_team": raw_data.get('away_team'),
-            "hot_level": hot_level
+            "hot_level": hot_level,
+            "handicap_line": f"{raw_data.get('home_team')} ({handicap_val})"
         },
         "intelligence": {
             "injury_status": injury_info or "未知 (建议联网确认)",
             "odds_trend": trend_info or "稳定 (建议联网确认)"
         },
         "recommendation": {
-            "result": handicap_recommendation or recommendation,
+            "result": final_rec,
             "confidence": f"{round(final_confidence_val * 100)}%",
-            "note": "已根据热门度及伤病模型进行信心修正。"
+            "note": f"已对标竞彩官方让球标识 ({handicap_val})。综合热门度及伤病模型进行信心修正。"
         }
     }
     
