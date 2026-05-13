@@ -84,7 +84,7 @@ def fetch_the_odds_api(config, home_team, away_team):
 # ==========================================
 
 def scrape_okooo(home_team, away_team):
-    """澳客网抓取实现"""
+    """澳客网抓取实现，增加竞彩官方让球盘口提取"""
     try:
         apply_rate_limit()
         url = "http://www.okooo.com/jingcai/"
@@ -96,17 +96,27 @@ def scrape_okooo(home_team, away_team):
             text = row.get_text()
             if home_team.lower() in text.lower() or away_team.lower() in text.lower():
                 odds = row.select("td.p_odds")
+                # 提取让球值，通常在 td.shenglv 或特定的 span 中
+                handicap_tag = row.select_one("span.re_odds") or row.select_one("span.handicap")
+                handicap_val = 0
+                if handicap_tag:
+                    h_text = handicap_tag.text.strip()
+                    match = re.search(r'([-+]\d+)', h_text)
+                    if match:
+                        handicap_val = int(match.group(1))
+
                 if len(odds) >= 3:
                     return {
                         "source": "Okooo (澳客网)",
                         "odds": {"win": odds[0].text.strip(), "draw": odds[1].text.strip(), "loss": odds[2].text.strip()},
+                        "official_handicap": handicap_val,
                         "url": url
                     }
         return None
     except: return None
 
 def scrape_500com(home_team, away_team):
-    """500.com 抓取实现"""
+    """500.com 抓取实现，增加竞彩官方让球盘口提取"""
     try:
         apply_rate_limit()
         url = "https://live.500.com/2h1.shtml"
@@ -118,11 +128,21 @@ def scrape_500com(home_team, away_team):
         for row in soup.select("#table_match tr"):
             text = row.get_text()
             if home_team in text or away_team in text:
+                # 提取让球值
+                handicap_td = row.select_one("td.rq") # 假设 500.com 有 td.rq 标识
+                handicap_val = 0
+                if handicap_td:
+                    h_text = handicap_td.text.strip()
+                    match = re.search(r'([-+]\d+)', h_text)
+                    if match:
+                        handicap_val = int(match.group(1))
+
                 nums = re.findall(r'\d+\.\d+', text)
                 if len(nums) >= 3:
                     return {
                         "source": "500.com",
                         "odds": {"win": nums[0], "draw": nums[1], "loss": nums[2]},
+                        "official_handicap": handicap_val,
                         "url": url
                     }
         return None
@@ -197,10 +217,16 @@ def get_match_detail_data(match_id, config=None):
         })
         
         # 赔率获取
-        odds = fetch_the_odds_api(config, home_team, away_team)
-        if not odds:
-            odds = web_search_odds(home_team, away_team)
-        data["realtime_odds"] = odds
+        odds_result = fetch_the_odds_api(config, home_team, away_team)
+        official_handicap = 0
+        
+        if not odds_result:
+            odds_result = web_search_odds(home_team, away_team)
+            if isinstance(odds_result, dict) and "official_handicap" in odds_result:
+                official_handicap = odds_result["official_handicap"]
+        
+        data["realtime_odds"] = odds_result
+        data["official_handicap"] = official_handicap
         
         # 新增：情报占位符（由 Agent 运行时通过 WebSearch 填充）
         data["intelligence"] = {
