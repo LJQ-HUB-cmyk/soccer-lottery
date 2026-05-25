@@ -1,7 +1,7 @@
 # Soccer Lottery (足彩分析助手)
 
 ⚽️ 足球分析与足彩预测 AI Skill（智能体技能） —— 基于历史对阵、伤停情报和热度降权，一句话给出方向与信心！
-完美兼容 Trae Solo、Claude Code、OpenClaw 等主流 AI 平台。无需编写代码，使用自然语言即可轻松实现 AI 足彩分析专家。
+完美兼容 Trae Solo。无需编写代码，使用自然语言即可轻松实现 AI 足彩分析专家。
 
 ## 它可以做什么
 只需对 AI 说：「**今日红单**」或「**怎么买**」
@@ -10,7 +10,6 @@
 赔率由你提供 —— 系统不主动检索赔率，你可以随时发截图或输入赔率数字，系统会据此做波动分析或串关计算。
 
 其它常用说法（详见仓库根目录 `SKILL.md`）：
-- **公众号 / 微信单篇**：提供 `mp.weixin.qq.com/s/...` 链接 → 可自动拉正文配图并读图，按场次还原 **胜平负 / 让球** 并标 **场次级逻辑矛盾**。
 - **赔率截图模式**：上传多场 **胜平负 / 让球** 赔率与变盘截图，并说明 **以图为准** → 仅基于截图做 **波动分析**，**不会**再用 API / 联网赔率覆盖你的数字（除非你明确要求对照）。
 
 ---
@@ -49,7 +48,6 @@
 | **自动化管道** | 一键触发抓取+分析+报告生成，无需多轮对话 | `SKILL.md` Auto-Pipeline |
 | **基本面分析** | H2H 历史 + 伤停情报 + 热度降权综合输出 | `scripts/analyzer.py` |
 | **赛事数据** | Football-Data.org API 获取对阵和 H2H 数据 | `scripts/fetch_match_data.py` |
-| **单篇微信复盘** | 链接拉 HTML + 自动下载配图，读图还原胜平负/让球与场次矛盾 | `scripts/parse_wechat_article_html.py` + `scripts/fetch_wechat_article_images.py` |
 | **赔率截图波动** | 多场截图、以用户赔率为唯一来源做变盘解读；不联网替数 | `SKILL.md` 赔率截图模式 |
 | **球队名称翻译** | 自动翻译球队英文名为中文 | `scripts/analyzer.py` |
 
@@ -96,31 +94,25 @@
 
 ---
 
-## 微信 / 截图辅助脚本（可选）
-
-在技能目录下执行（需已 `pip install -r requirements.txt`）：
-
-| 脚本 | 作用 |
-| --- | --- |
-| `scripts/parse_wechat_article_html.py` | 解析微信文章 HTML：`--url` 或 `curl … \| python3 …` 输出标题、作者及 `#js_content` 可见文字 |
-| `scripts/fetch_wechat_article_images.py` | `--url` 下载正文内配图到 `.cache/wechat_images/…`，供 AI **Read** 读图 |
-
-配图缓存目录已加入 `.gitignore`（`.cache/`）。
-
 ## 安装
 
-**Claude Code:**
+**Trae Solo:**
+
+方式一：命令行安装
 ```bash
-git clone --depth 1 https://github.com/liming199364/soccer-lottery.git ~/.claude/skills/soccer-lottery
-cd ~/.claude/skills/soccer-lottery && pip install -r requirements.txt
+git clone --depth 1 https://github.com/liming199364/soccer-lottery.git ~/.trae/skills/soccer-lottery
+cd ~/.trae/skills/soccer-lottery && pip install -r requirements.txt
 cp config.example.yaml config.yaml # 然后填入你的 API Key
 ```
 
-**OpenClaw / Coze:**
-```bash
-# 直接在对话框输入以下指令
-帮我安装技能 https://github.com/liming199364/soccer-lottery
-```
+方式二：自然语言安装
+直接在对话中输入：
+> 帮我安装技能 https://github.com/liming199364/soccer-lottery
+
+安装完成后，直接说：
+> 帮我配置一下 soccer-lottery 技能的 API Key，我的 key 是 xxxxxxxxxx
+
+AI 助手会自动基于 `config.example.yaml` 创建 `config.yaml` 并填入你的 Key。
 
 ## 配置
 在 `config.yaml` 中配置你的数据源 API Key：
@@ -137,16 +129,7 @@ api:
 - 选择免费的 **"Free Tier"**（支持五大联赛和欧冠等顶级赛事）
 - 注册后 API Token 会发送到你的邮箱
 
-## 在 Coze 等平台作为自然语言 Skill 使用
-你可以直接使用本代码仓库快速注册为自然语言技能，无需自己部署服务器或写代码包装：
 
-1. **直接导入仓库**：
-    > 帮我安装技能 `https://github.com/liming199364/soccer-lottery` 
-2. **自然语言配置 Key**：不需要你手动去找代码文件修改，安装完成后，你只需在对话框里直接对 AI 助手说：
-   > 「帮我配置一下 soccer-lottery 技能的 API Key，我的 key 是 xxxxxxxxxx」
-   
-   AI 助手会自动理解你的意图，帮你基于 `config.example.yaml` 创建出 `config.yaml`，并将你的 Key 准确地填入配置文件中。
-3. **开始使用**：配置好之后，直接对机器人说「**今日红单**」或「**怎么买**」，即可触发全自动分析。完整触发词、例外（如赔率截图模式不走全链）以 **`SKILL.md`** 为准。
 
 ## 功能特性
 
@@ -165,8 +148,6 @@ api:
 ## 辅助功能
 除了全流程分析，你还可以直接进行单项查询：
 - **单场分析**：`python3 scripts/analyzer.py --match <id>`
-- **微信文章 HTML**：`python3 scripts/parse_wechat_article_html.py --url '<mp.weixin.qq.com 链接>'`
-- **微信正文配图**：`python3 scripts/fetch_wechat_article_images.py --url '<同一链接>'`
 
 ## 输出示例
 
@@ -192,4 +173,4 @@ MIT License
 
 ---
 
-更多行为约束、输出模版与「赔率截图 / 微信复盘」细则见根目录 **`SKILL.md`**。
+更多行为约束、输出模版与「赔率截图」细则见根目录 **`SKILL.md`**。
